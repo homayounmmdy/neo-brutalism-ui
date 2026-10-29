@@ -40,6 +40,10 @@ const Field: React.FC<{
 
 export default function FormPage() {
    const [date, setDate] = useState(getTodayISO());
+   const [time, setTime] = useState("09:00");
+   const [dateTime, setDateTime] = useState("");
+   const [month, setMonth] = useState("");
+   const [week, setWeek] = useState("");
 
    return (
       <main className="mx-auto max-w-3xl space-y-10 px-4 py-10 text-black dark:text-gray-200">
@@ -151,21 +155,42 @@ export default function FormPage() {
                   max={addDaysISO(30)}
                />
 
-               <Field label="Time" htmlFor="time">
-                  <input id="time" type="time" />
-               </Field>
+               <DatePicker
+                  id="time"
+                  type="time"
+                  label="Time"
+                  focusColor="focus-cyan"
+                  step={60}
+                  value={time}
+                  onChange={setTime}
+               />
 
-               <Field label="Date & time (local)" htmlFor="datetime-local">
-                  <input id="datetime-local" type="datetime-local" />
-               </Field>
+               <DatePicker
+                  id="datetime-local"
+                  type="datetime-local"
+                  label="Date & time (local)"
+                  focusColor="focus-green"
+                  value={dateTime}
+                  onChange={setDateTime}
+               />
 
-               <Field label="Month" htmlFor="month">
-                  <input id="month" type="month" />
-               </Field>
+               <DatePicker
+                  id="month"
+                  type="month"
+                  label="Month"
+                  focusColor="focus-yellow"
+                  value={month}
+                  onChange={setMonth}
+               />
 
-               <Field label="Week" htmlFor="week">
-                  <input id="week" type="week" />
-               </Field>
+               <DatePicker
+                  id="week"
+                  type="week"
+                  label="Week"
+                  focusColor="focus-red"
+                  value={week}
+                  onChange={setWeek}
+               />
             </Section>
 
             {/* ============ SELECT ============ */}

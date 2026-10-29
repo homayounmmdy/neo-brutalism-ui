@@ -17,16 +17,3 @@ export type TextareaType = {
    focusColor?: `focus-${ColorsVariant}`;
    label?: string;
 } & React.TextareaHTMLAttributes<HTMLTextAreaElement>;
-
-export type DatePickerType = {
-   focusColor?: `focus-${ColorsVariant}`;
-   label?: string;
-   value?: string;
-   onChange?: (value: string) => void;
-   min?: string;
-   max?: string;
-   placeholder?: string;
-} & Omit<
-   React.InputHTMLAttributes<HTMLInputElement>,
-   "type" | "value" | "onChange" | "min" | "max" | "size"
->;

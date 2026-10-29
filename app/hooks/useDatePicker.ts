@@ -14,28 +14,29 @@ import {
    parseISO,
    startOfDay,
    toISO,
-} from "@/app/utils/date";
+} from "../utils/date";
 
 /* =====================================================================
- * Picker-specific helpers (private to this file)
+ * Private helpers
  * ===================================================================== */
+const pad = (n: number) => String(n).padStart(2, "0");
 
 const isSameMonth = (a: Date, b: Date) =>
    a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth();
 
-const isDateInRange = (d: Date, min?: string, max?: string): boolean => {
+const isDateInRange = (d: Date, min?: string, max?: string) => {
    const day = startOfDay(d);
-   const minDate = parseISO(min);
-   const maxDate = parseISO(max);
-   if (minDate && day < startOfDay(minDate)) return false;
-   if (maxDate && day > startOfDay(maxDate)) return false;
+   const mn = parseISO(min);
+   const mx = parseISO(max);
+   if (mn && day < startOfDay(mn)) return false;
+   if (mx && day > startOfDay(mx)) return false;
    return true;
 };
 
-const formatMonthLabel = (d: Date): string =>
+export const formatMonthLabel = (d: Date) =>
    d.toLocaleDateString(undefined, { month: "long", year: "numeric" });
 
-const formatAriaDate = (d: Date): string =>
+export const formatAriaDate = (d: Date) =>
    d.toLocaleDateString(undefined, {
       weekday: "long",
       year: "numeric",
@@ -66,24 +67,86 @@ const getNextFocusDate = (cur: Date, key: string): Date | null => {
    }
 };
 
+/* ---------- time parsing ---------- */
+export const parseTime = (s?: string): { h: number; m: number } | null => {
+   if (!s) return null;
+   const m = s.match(/^(\d{1,2}):(\d{2})/);
+   if (!m) return null;
+   return { h: +m[1], m: +m[2] };
+};
+
+/* ---------- month parsing ---------- */
+export const parseMonth = (
+   s?: string
+): { year: number; month: number } | null => {
+   if (!s) return null;
+   const m = s.match(/^(\d{4})-(\d{2})$/);
+   if (!m) return null;
+   return { year: +m[1], month: +m[2] - 1 };
+};
+
+/* ---------- week parsing ---------- */
+export const parseWeek = (
+   s?: string
+): { year: number; week: number } | null => {
+   if (!s) return null;
+   const m = s.match(/^(\d{4})-W(\d{1,2})$/);
+   if (!m) return null;
+   return { year: +m[1], week: +m[2] };
+};
+
+export const getWeeksInYear = (year: number): number => {
+   const jan1Day = (new Date(year, 0, 1).getDay() + 6) % 7;
+   const isLeap = (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0;
+   return jan1Day === 3 || (isLeap && jan1Day === 2) ? 53 : 52;
+};
+
+export const getWeekStart = (year: number, week: number): Date => {
+   const jan4 = new Date(year, 0, 4);
+   const jan4Day = (jan4.getDay() + 6) % 7;
+   const week1Mon = addDays(jan4, -jan4Day);
+   return addDays(week1Mon, (week - 1) * 7);
+};
+
+export const getISOWeekNumber = (d: Date): number => {
+   const date = new Date(d.getTime());
+   date.setHours(0, 0, 0, 0);
+   date.setDate(date.getDate() + 3 - ((date.getDay() + 6) % 7));
+   const week1 = new Date(date.getFullYear(), 0, 4);
+   return (
+      1 +
+      Math.round(
+         ((date.getTime() - week1.getTime()) / 86400000 -
+            3 +
+            ((week1.getDay() + 6) % 7)) /
+            7
+      )
+   );
+};
+
 /* =====================================================================
  * Hook
  * ===================================================================== */
+export type PickerMode = "date" | "time" | "datetime-local" | "month" | "week";
 
-interface UseDatePickerOptions {
+interface Options {
+   mode?: PickerMode;
    value?: string;
    onChange?: (v: string) => void;
    min?: string;
    max?: string;
+   step?: number;
 }
 
 export function useDatePicker({
+   mode = "date",
    value,
    onChange,
    min,
    max,
-}: UseDatePickerOptions) {
-   /* ---------- controlled / uncontrolled value (was useControllableValue) */
+   step = 1,
+}: Options) {
+   /* ---------- controlled / uncontrolled ---------- */
    const isControlled = value !== undefined;
    const [internal, setInternal] = useState<string>("");
    const currentValue = isControlled ? value : internal;
@@ -96,51 +159,25 @@ export function useDatePicker({
       [isControlled, onChange]
    );
 
-   /* ---------- picker state ---------- */
+   /* ---------- open / refs ---------- */
    const [open, setOpen] = useState(false);
-   const [viewDate, setViewDate] = useState<Date>(
-      () => parseISO(currentValue) ?? new Date()
-   );
-
    const wrapRef = useRef<HTMLDivElement>(null);
    const triggerRef = useRef<HTMLButtonElement>(null);
-   const gridRef = useRef<HTMLDivElement>(null);
+   const popupRef = useRef<HTMLDivElement>(null);
 
-   const selected = parseISO(currentValue);
-   const today = startOfDay(new Date());
-
-   const isDayDisabled = useCallback(
-      (d: Date) => !isDateInRange(d, min, max),
-      [min, max]
-   );
-
-   const closeAndFocusTrigger = useCallback(() => {
+   const closeAndFocus = useCallback(() => {
       setOpen(false);
       triggerRef.current?.focus();
    }, []);
 
-   /* ---------- open: sync view + focus selected/today ---------- */
-   useEffect(() => {
-      if (!open) return;
-      const focus = selected ?? new Date();
-      setViewDate(focus);
-      requestAnimationFrame(() => {
-         gridRef.current
-            ?.querySelector<HTMLButtonElement>(`[data-date="${toISO(focus)}"]`)
-            ?.focus();
-      });
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-   }, [open]);
-
-   /* ---------- dismiss: outside click + Escape (was useDismiss) ---------- */
+   /* ---------- dismiss on outside click / Esc ---------- */
    useEffect(() => {
       if (!open) return;
       const onDown = (e: MouseEvent) => {
-         if (!wrapRef.current?.contains(e.target as Node))
-            closeAndFocusTrigger();
+         if (!wrapRef.current?.contains(e.target as Node)) closeAndFocus();
       };
       const onKey = (e: KeyboardEvent) => {
-         if (e.key === "Escape") closeAndFocusTrigger();
+         if (e.key === "Escape") closeAndFocus();
       };
       document.addEventListener("mousedown", onDown);
       document.addEventListener("keydown", onKey);
@@ -148,39 +185,221 @@ export function useDatePicker({
          document.removeEventListener("mousedown", onDown);
          document.removeEventListener("keydown", onKey);
       };
-   }, [open, closeAndFocusTrigger]);
+   }, [open, closeAndFocus]);
 
-   /* ---------- actions ---------- */
-   const pick = useCallback(
-      (d: Date) => {
-         if (isDayDisabled(d)) return;
-         setValue(toISO(d));
-         closeAndFocusTrigger();
-      },
-      [isDayDisabled, setValue, closeAndFocusTrigger]
+   /* ---------- date state (date, datetime-local) ---------- */
+   const selectedDate = useMemo(() => {
+      if (mode === "date") return parseISO(currentValue);
+      if (mode === "datetime-local")
+         return parseISO(currentValue.split("T")[0]);
+      return null;
+   }, [mode, currentValue]);
+
+   const [viewDate, setViewDate] = useState<Date>(
+      () => selectedDate ?? new Date()
+   );
+   const days = useMemo(() => getCalendarDays(viewDate), [viewDate]);
+   const today = startOfDay(new Date());
+
+   const isDayDisabled = useCallback(
+      (d: Date) => !isDateInRange(d, min, max),
+      [min, max]
    );
 
+   /* ---------- time state (time, datetime-local) ---------- */
+   const timeParts = useMemo(() => {
+      if (mode === "time") return parseTime(currentValue);
+      if (mode === "datetime-local")
+         return parseTime(currentValue.split("T")[1]);
+      return null;
+   }, [mode, currentValue]);
+
+   const hours = useMemo(() => Array.from({ length: 24 }, (_, i) => i), []);
+   const minutes = useMemo(() => {
+      const s = Math.max(1, Math.min(60, step));
+      return Array.from({ length: Math.ceil(60 / s) }, (_, i) => i * s);
+   }, [step]);
+
+   /* ---------- month state ---------- */
+   const monthParts = useMemo(
+      () => (mode === "month" ? parseMonth(currentValue) : null),
+      [mode, currentValue]
+   );
+
+   const [viewYear, setViewYear] = useState<number>(
+      () => monthParts?.year ?? new Date().getFullYear()
+   );
+
+   /* ---------- week state ---------- */
+   const weekParts = useMemo(
+      () => (mode === "week" ? parseWeek(currentValue) : null),
+      [mode, currentValue]
+   );
+
+   const [viewWeekYear, setViewWeekYear] = useState<number>(
+      () => weekParts?.year ?? new Date().getFullYear()
+   );
+
+   const weeksInViewYear = useMemo(() => {
+      const n = getWeeksInYear(viewWeekYear);
+      return Array.from({ length: n }, (_, i) => i + 1);
+   }, [viewWeekYear]);
+
+   /* ---------- sync view state on open ---------- */
+   useEffect(() => {
+      if (!open) return;
+      if (mode === "date" || mode === "datetime-local") {
+         const focus = selectedDate ?? new Date();
+         setViewDate(focus);
+         if (mode === "date") {
+            requestAnimationFrame(() => {
+               popupRef.current
+                  ?.querySelector<HTMLButtonElement>(
+                     `[data-date="${toISO(focus)}"]`
+                  )
+                  ?.focus();
+            });
+         }
+      } else if (mode === "month") {
+         setViewYear(monthParts?.year ?? new Date().getFullYear());
+      } else if (mode === "week") {
+         setViewWeekYear(weekParts?.year ?? new Date().getFullYear());
+      } else if (mode === "time" || mode === "datetime-local") {
+         // scroll selected time into view
+         if (timeParts) {
+            requestAnimationFrame(() => {
+               popupRef.current
+                  ?.querySelector(`[data-hour="${timeParts.h}"]`)
+                  ?.scrollIntoView({ block: "center" });
+               popupRef.current
+                  ?.querySelector(`[data-minute="${timeParts.m}"]`)
+                  ?.scrollIntoView({ block: "center" });
+            });
+         }
+      }
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+   }, [open]);
+
+   /* =====================================================================
+    * Actions
+    * ===================================================================== */
+
+   /* ---------- date picks ---------- */
+   const pickDate = useCallback(
+      (d: Date) => {
+         if (isDayDisabled(d)) return;
+         if (mode === "datetime-local") {
+            const t = timeParts ?? { h: 0, m: 0 };
+            setValue(`${toISO(d)}T${pad(t.h)}:${pad(t.m)}`);
+         } else {
+            setValue(toISO(d));
+            closeAndFocus();
+         }
+      },
+      [mode, isDayDisabled, setValue, timeParts, closeAndFocus]
+   );
+
+   /* ---------- time picks ---------- */
+   const pickHour = useCallback(
+      (h: number) => {
+         const m = timeParts?.m ?? 0;
+         if (mode === "datetime-local") {
+            const datePart = currentValue.split("T")[0] || toISO(new Date());
+            setValue(`${datePart}T${pad(h)}:${pad(m)}`);
+         } else {
+            setValue(`${pad(h)}:${pad(m)}`);
+         }
+      },
+      [mode, timeParts, currentValue, setValue]
+   );
+
+   const pickMinute = useCallback(
+      (m: number) => {
+         const h = timeParts?.h ?? 0;
+         if (mode === "datetime-local") {
+            const datePart = currentValue.split("T")[0] || toISO(new Date());
+            setValue(`${datePart}T${pad(h)}:${pad(m)}`);
+         } else {
+            setValue(`${pad(h)}:${pad(m)}`);
+            closeAndFocus();
+         }
+      },
+      [mode, timeParts, currentValue, setValue, closeAndFocus]
+   );
+
+   /* ---------- month picks ---------- */
+   const pickMonth = useCallback(
+      (monthIdx: number) => {
+         setValue(`${viewYear}-${pad(monthIdx + 1)}`);
+         closeAndFocus();
+      },
+      [viewYear, setValue, closeAndFocus]
+   );
+
+   /* ---------- week picks ---------- */
+   const pickWeek = useCallback(
+      (week: number) => {
+         setValue(`${viewWeekYear}-W${pad(week)}`);
+         closeAndFocus();
+      },
+      [viewWeekYear, setValue, closeAndFocus]
+   );
+
+   /* ---------- shared footer actions ---------- */
    const goToday = useCallback(() => {
-      if (isDayDisabled(today)) return;
-      setViewDate(today);
-      pick(today);
-   }, [isDayDisabled, today, pick]);
+      const now = new Date();
+      switch (mode) {
+         case "date":
+            if (isDayDisabled(today)) return;
+            setValue(toISO(today));
+            setViewDate(today);
+            break;
+         case "time":
+            setValue(`${pad(now.getHours())}:${pad(now.getMinutes())}`);
+            break;
+         case "datetime-local":
+            setValue(
+               `${toISO(now)}T${pad(now.getHours())}:${pad(now.getMinutes())}`
+            );
+            break;
+         case "month":
+            setValue(`${now.getFullYear()}-${pad(now.getMonth() + 1)}`);
+            break;
+         case "week":
+            setValue(`${now.getFullYear()}-W${pad(getISOWeekNumber(now))}`);
+            break;
+      }
+      if (mode !== "datetime-local") closeAndFocus();
+   }, [mode, today, isDayDisabled, setValue, closeAndFocus]);
 
    const clear = useCallback(() => {
       setValue("");
-      closeAndFocusTrigger();
-   }, [setValue, closeAndFocusTrigger]);
+      closeAndFocus();
+   }, [setValue, closeAndFocus]);
 
-   /* ---------- header nav (preserves day-of-month) ---------- */
-   const prevYear = useCallback(
-      () =>
+   /* ---------- nav ---------- */
+   const prevYear = useCallback(() => {
+      if (mode === "month") setViewYear((y) => y - 1);
+      else if (mode === "week") setViewWeekYear((y) => y - 1);
+      else
          setViewDate((p) => {
             const d = new Date(p);
             d.setFullYear(d.getFullYear() - 1);
             return d;
-         }),
-      []
-   );
+         });
+   }, [mode]);
+
+   const nextYear = useCallback(() => {
+      if (mode === "month") setViewYear((y) => y + 1);
+      else if (mode === "week") setViewWeekYear((y) => y + 1);
+      else
+         setViewDate((p) => {
+            const d = new Date(p);
+            d.setFullYear(d.getFullYear() + 1);
+            return d;
+         });
+   }, [mode]);
+
    const prevMonth = useCallback(
       () =>
          setViewDate((p) => {
@@ -199,17 +418,8 @@ export function useDatePicker({
          }),
       []
    );
-   const nextYear = useCallback(
-      () =>
-         setViewDate((p) => {
-            const d = new Date(p);
-            d.setFullYear(d.getFullYear() + 1);
-            return d;
-         }),
-      []
-   );
 
-   /* ---------- keyboard navigation ---------- */
+   /* ---------- keyboard nav on day grid ---------- */
    const onGridKeyDown = useCallback(
       (e: React.KeyboardEvent<HTMLDivElement>) => {
          const iso = (e.target as HTMLElement).dataset?.date;
@@ -224,7 +434,7 @@ export function useDatePicker({
          if (!isSameMonth(next, viewDate)) setViewDate(next);
          const target = toISO(next);
          requestAnimationFrame(() => {
-            gridRef.current
+            popupRef.current
                ?.querySelector<HTMLButtonElement>(`[data-date="${target}"]`)
                ?.focus();
          });
@@ -245,35 +455,52 @@ export function useDatePicker({
       [open]
    );
 
-   const days = useMemo(() => getCalendarDays(viewDate), [viewDate]);
-
    return {
-      // state
+      mode,
+      // shared
       currentValue,
       open,
       setOpen,
-      days,
-      selected,
-      today,
-      monthLabel: formatMonthLabel(viewDate),
-      // refs
       wrapRef,
       triggerRef,
-      gridRef,
-      // helpers / actions
-      isDayDisabled,
-      pick,
+      popupRef,
+      closeAndFocus,
+      onTriggerKeyDown,
       goToday,
       clear,
-      prevYear,
+      // date
+      days,
+      selectedDate,
+      viewDate,
+      today,
+      isDayDisabled,
+      pickDate,
+      onGridKeyDown,
+      monthLabel: formatMonthLabel(viewDate),
       prevMonth,
       nextMonth,
+      prevYear,
       nextYear,
-      onGridKeyDown,
-      onTriggerKeyDown,
-      // re-exported helpers used by the render
-      formatAriaDate,
-      isSameDay,
+      // time
+      hours,
+      minutes,
+      timeParts,
+      pickHour,
+      pickMinute,
+      // month
+      viewYear,
+      monthParts,
+      pickMonth,
+      // week
+      viewWeekYear,
+      weeksInViewYear,
+      weekParts,
+      pickWeek,
+      // re-exported for the render
+      pad,
       toISO,
+      isSameDay,
+      formatAriaDate,
+      getWeekStart,
    };
 }
