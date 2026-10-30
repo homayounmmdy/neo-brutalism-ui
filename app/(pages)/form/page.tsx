@@ -2,6 +2,7 @@
 
 import DatePicker from "@/app/components/DatePicker";
 import Input from "@/app/components/Input";
+import Select from "@/app/components/Select.tsx";
 import Textarea from "@/app/components/Textarea";
 import { addDaysISO, getTodayISO } from "@/app/utils/date";
 import React, { useState } from "react";
@@ -194,49 +195,68 @@ export default function FormPage() {
             </Section>
 
             {/* ============ SELECT ============ */}
-            <Section title="Select">
-               <Field label="Single select" htmlFor="select-single">
-                  <select id="select-single" defaultValue="">
-                     <option value="" disabled>
-                        Choose…
-                     </option>
-                     <option value="a">Option A</option>
-                     <option value="b">Option B</option>
-                     <option value="c">Option C</option>
-                  </select>
-               </Field>
 
-               <Field
-                  label="Multiple select"
-                  htmlFor="select-multi"
-                  hint="Hold Ctrl / Cmd to select more than one."
-               >
-                  <select id="select-multi" multiple size={4}>
-                     <option value="1">One</option>
-                     <option value="2">Two</option>
-                     <option value="3">Three</option>
-                     <option value="4">Four</option>
-                  </select>
-               </Field>
+            <Section title="Select — custom">
+               <Select
+                  id="plan"
+                  label="Plan"
+                  focusColor="focus-cyan"
+                  placeholder="Choose a plan…"
+                  options={[
+                     { value: "free", label: "Free" },
+                     { value: "pro", label: "Pro" },
+                     { value: "team", label: "Team" },
+                     { value: "ent", label: "Enterprise", disabled: true },
+                  ]}
+               />
 
-               <Field label="Grouped select" htmlFor="select-grouped">
-                  <select id="select-grouped">
-                     <optgroup label="Fruits">
-                        <option>Apple</option>
-                        <option>Banana</option>
-                     </optgroup>
-                     <optgroup label="Vegetables">
-                        <option>Carrot</option>
-                        <option>Potato</option>
-                     </optgroup>
-                  </select>
-               </Field>
+               <Select
+                  id="country"
+                  label="Country (grouped)"
+                  focusColor="focus-green"
+                  options={[
+                     {
+                        label: "Europe",
+                        options: [
+                           { value: "de", label: "Germany" },
+                           { value: "fr", label: "France" },
+                           { value: "es", label: "Spain" },
+                        ],
+                     },
+                     {
+                        label: "Asia",
+                        options: [
+                           { value: "jp", label: "Japan" },
+                           { value: "kr", label: "Korea" },
+                           { value: "vn", label: "Vietnam" },
+                        ],
+                     },
+                  ]}
+               />
 
-               <Field label="Disabled select" htmlFor="select-disabled">
-                  <select id="select-disabled" disabled>
-                     <option>Unavailable</option>
-                  </select>
-               </Field>
+               <Select
+                  id="tags"
+                  label="Tags (multiple)"
+                  focusColor="focus-red"
+                  multiple
+                  placeholder="Pick some tags…"
+                  options={[
+                     { value: "react", label: "React" },
+                     { value: "ts", label: "TypeScript" },
+                     { value: "tailwind", label: "Tailwind" },
+                     { value: "node", label: "Node.js" },
+                     { value: "go", label: "Go" },
+                  ]}
+               />
+
+               <Select
+                  id="disabled-sel"
+                  label="Disabled"
+                  focusColor="focus-yellow"
+                  disabled
+                  value="pro"
+                  options={[{ value: "pro", label: "Pro" }]}
+               />
             </Section>
 
             {/* ============ CHECKBOX ============ */}
