@@ -1,5 +1,7 @@
 "use client";
 
+import Checkbox from "@/app/components/Checkbox";
+import CheckboxGroup from "@/app/components/CheckboxGroup";
 import DatePicker from "@/app/components/DatePicker";
 import Input from "@/app/components/Input";
 import Select from "@/app/components/Select.tsx";
@@ -260,37 +262,64 @@ export default function FormPage() {
             </Section>
 
             {/* ============ CHECKBOX ============ */}
-            <Section title="Checkbox">
-               <div className="flex items-center gap-2">
-                  <input id="checkbox-single" type="checkbox" />
-                  <label htmlFor="checkbox-single" className="text-sm">
-                     Accept terms
-                  </label>
+
+            <Section title="Checkbox — custom">
+               {/* Single */}
+               <Checkbox
+                  id="terms"
+                  label="Accept terms"
+                  description="You agree to the Terms of Service and Privacy Policy."
+                  focusColor="focus-cyan"
+               />
+
+               {/* Single disabled */}
+               <Checkbox
+                  id="newsletter"
+                  label="Subscribe to newsletter"
+                  focusColor="focus-green"
+                  disabled
+               />
+
+               {/* Sizes */}
+               <div className="flex items-center gap-6">
+                  <Checkbox size="sm" label="Small" focusColor="focus-yellow" />
+                  <Checkbox
+                     size="md"
+                     label="Medium"
+                     focusColor="focus-yellow"
+                     defaultChecked
+                  />
+                  <Checkbox size="lg" label="Large" focusColor="focus-yellow" />
                </div>
 
-               <fieldset className="space-y-2">
-                  <legend className="mb-1 text-sm">Interests</legend>
-                  {["Design", "Code", "Music"].map((item) => (
-                     <div key={item} className="flex items-center gap-2">
-                        <input
-                           id={`cb-${item}`}
-                           type="checkbox"
-                           name="interests"
-                           value={item}
-                        />
-                        <label htmlFor={`cb-${item}`} className="text-sm">
-                           {item}
-                        </label>
-                     </div>
-                  ))}
-               </fieldset>
+               {/* Group with select-all */}
+               <CheckboxGroup
+                  id="interests"
+                  name="interests"
+                  label="Interests"
+                  focusColor="focus-red"
+                  showSelectAll
+                  options={[
+                     { value: "design", label: "Design" },
+                     { value: "code", label: "Code" },
+                     { value: "music", label: "Music" },
+                     { value: "sports", label: "Sports", disabled: true },
+                  ]}
+               />
 
-               <div className="flex items-center gap-2">
-                  <input id="checkbox-disabled" type="checkbox" disabled />
-                  <label htmlFor="checkbox-disabled" className="text-sm">
-                     Disabled checkbox
-                  </label>
-               </div>
+               {/* Horizontal group */}
+               <CheckboxGroup
+                  id="notifications"
+                  name="notifications"
+                  label="Notifications"
+                  focusColor="focus-green"
+                  orientation="horizontal"
+                  options={[
+                     { value: "email", label: "Email" },
+                     { value: "sms", label: "SMS" },
+                     { value: "push", label: "Push" },
+                  ]}
+               />
             </Section>
 
             {/* ============ RADIO ============ */}

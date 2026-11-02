@@ -46,3 +46,33 @@ export type SelectType = {
    React.ButtonHTMLAttributes<HTMLButtonElement>,
    "value" | "onChange" | "type" | "disabled" | "children" | "onClick"
 >;
+
+export type CheckboxType = {
+   focusColor?: `focus-${ColorsVariant}`;
+   label?: string;
+   description?: string;
+   indeterminate?: boolean;
+   size?: "sm" | "md" | "lg";
+} & Omit<React.InputHTMLAttributes<HTMLInputElement>, "type" | "size">;
+
+export type CheckboxGroupOption = {
+   value: string;
+   label: string;
+   description?: string;
+   disabled?: boolean;
+};
+
+export type CheckboxGroupType = {
+   focusColor?: `focus-${ColorsVariant}`;
+   label?: string;
+   options: CheckboxGroupOption[];
+   value?: string[];
+   onChange?: (value: string[]) => void;
+   orientation?: "vertical" | "horizontal";
+   showSelectAll?: boolean;
+   size?: "sm" | "md" | "lg";
+   disabled?: boolean;
+   name?: string;
+   id?: string;
+   className?: string;
+};
